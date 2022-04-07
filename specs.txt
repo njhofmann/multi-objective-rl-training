@@ -1,0 +1,4 @@
+CUDA 11.3
+Python 3.8
+PyTorch 1.11.0
+Gym 0.21.0
