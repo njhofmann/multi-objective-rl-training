@@ -1,0 +1,26 @@
+actor_lr: 0.0003
+agent_arch:
+- 64
+- 64
+agent_method: separate
+arch:
+- 64
+- 64
+batch_size: 32
+critic_arch:
+- 64
+- 64
+critic_lr: 0.001
+critic_weight: 0.25
+entropy_weight: 0.001
+env: mountaincar
+eval_eps: 20
+eval_iters: 1000
+gamma: 0.99
+lam: 0.97
+lr: 0.0007
+n_updates: 33000
+save_dirc: exp_results
+save_iters: 10000
+seed: 7
+train_method: linear-sum
