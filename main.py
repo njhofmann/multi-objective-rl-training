@@ -45,21 +45,25 @@ def get_args():
     # TODO expand this
     parser.add_argument('--train-method', type=str, default=None, help='training regime to use:\n' \
                                                                         '- linear-sum: losses are treated as a linear sum, \n' \
-                                                                        '- mmdm: modified differential method of multipliers')
+                                                                        '- mdmm: modified differential method of multipliers')
     parser.add_argument('--eval-eps', type=int, default=20, help='number of evaluation episodes to run during each evaluation cycle')
     parser.add_argument('--eval-iters', type=int, default=1000, help='run an evaluation cycle every X policy updates')
-    parser.add_argument('--n-updates', type=int, default=33000, help='number of policy updates to perform')
-    parser.add_argument('--batch-size', type=int, default=32, help='number of interactions making up data for a policy update (i.e. the minibatch)')
+    parser.add_argument('--n-updates', type=int, default=100000, help='number of policy updates to perform')
+    parser.add_argument('--batch-size', type=int, default=64, help='number of interactions making up data for a policy update (i.e. the minibatch)')
     parser.add_argument('--gamma', type=float, default=.99, help='discount factor for rewards')
     parser.add_argument('--lam', type=float, default=.97, help='lambda argument for GAE-lambda estimation')
-    parser.add_argument('--actor-arch', type=int, nargs='+', default=[64, 64], help='layers width for actor network, used only if `train_method` set to `separate`')
-    parser.add_argument('--critic-arch', type=int, nargs='+', default=[64, 64], help='layers widths for critic network, used only if `train_method` set to `separate`')
-    parser.add_argument('--arch', type=int, nargs='+', default=[64, 64], help='layers widths for shared actor-critic network, used only if `train_method` set to `shared`')
-    parser.add_argument('--actor-lr', type=float, default=.0003, help='learning rate for actor network, used only if `train_method` set to `separate`')
+    parser.add_argument('--actor-arch', type=int, nargs='+', default=[128,], help='layers width for actor network, used only if `train_method` set to `separate`')
+    parser.add_argument('--critic-arch', type=int, nargs='+', default=[128,], help='layers widths for critic network, used only if `train_method` set to `separate`')
+    parser.add_argument('--arch', type=int, nargs='+', default=[128,], help='layers widths for shared actor-critic network, used only if `train_method` set to `shared`')
+    parser.add_argument('--actor-lr', type=float, default=.001, help='learning rate for actor network, used only if `train_method` set to `separate`')
     parser.add_argument('--critic-lr', type=float, default=.001, help='learning rate for shared actor-critic network, used only if `train_method` set to `shared`')
-    parser.add_argument('--lr', type=float, default=.0007, help='learning rate for critic network, used only if `train_method` set to `shared`')
+    parser.add_argument('--lr', type=float, default=.01, help='learning rate for critic network, used only if `train_method` set to `shared`')
     parser.add_argument('--critic-weight', type=float, default=.25, help='weight for critic network loss, used only if `training_method` set to `shared`')
-    parser.add_argument('--entropy-weight', type=float, default=.001, help='weight for entropy loss for actor network')
+    parser.add_argument('--entropy-weight', type=float, default=.01, help='weight for entropy loss for actor network')
+    parser.add_argument('--epsilon', type=float, default=.7, help='mdmm epsilon parameter')
+    parser.add_argument('--damping', type=float, default=10.0, help='mdmm dampening parameter')
+    parser.add_argument('--lambda', type=float, default=0.0, help='mdmm lambda parameter')
+    parser.add_argument('--max-grad-norm', type=float, default=.5, help='maximum gradient norm')
     return parser.parse_args()
 
 
@@ -76,7 +80,8 @@ if __name__ == '__main__':
     with open(save_dirc / 'params.yaml', 'w') as f:
         y.dump(vars(args), f)
     
-    agent = ac.ActorCritic(init_method=args.agent_method, 
+    agent = ac.ActorCritic(device=device,
+                            init_method=args.agent_method, 
                             train_method=args.train_method,
                             n_actions=n_actions,
                             shared_arch=args.arch,
@@ -87,7 +92,8 @@ if __name__ == '__main__':
                             actor_lr=args.actor_lr,
                             critic_lr=args.critic_lr,
                             critic_loss_weight=args.critic_weight,
-                            entropy_loss_weight=args.entropy_weight
+                            entropy_loss_weight=args.entropy_weight,
+                            max_grad_norm=args.max_grad_norm
                            ).to(device)
 
     run_exp.run_experiment(train_env=train_env,
