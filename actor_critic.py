@@ -8,6 +8,7 @@ class ActorCritic(nn.Module):
 
     def __init__(self, 
                  device,
+                 n_envs,
                  init_method, 
                  train_method,
                  n_actions, 
@@ -20,7 +21,9 @@ class ActorCritic(nn.Module):
                  critic_lr,
                  critic_loss_weight,
                  entropy_loss_weight,
-                 max_grad_norm):
+                 max_grad_norm,
+                 mdmm_epsilon,
+                 mdmm_damping):
         super().__init__()
         self._device = device
         self._init_method = init_method
@@ -28,7 +31,11 @@ class ActorCritic(nn.Module):
         self._critic_loss_weight = critic_loss_weight
         self._entropy_loss_weight = entropy_loss_weight
         self._max_grad_norm = max_grad_norm
-        self._init_networks(shared_arch, actor_arch, critic_arch, n_actions, obs_space)        
+        self._mdmm_lambda = t.tensor(0.0, requires_grad=True)
+        self._mdmm_epsilon = mdmm_epsilon
+        self._mdmm_damping = mdmm_damping
+
+        self._init_networks(shared_arch, actor_arch, critic_arch, n_actions, obs_space, n_envs)        
         self._init_optimizers(shared_lr, actor_lr, critic_lr)
 
     def _init_optimizers(self, shared_lr, actor_lr, critic_lr):
@@ -43,9 +50,12 @@ class ActorCritic(nn.Module):
         return nn.Sequential(*list(it.chain(*[(nn.Linear(arch[i-1], arch[i]), nn.Identity() if i == n_layers - 1 and mark_last else nn.ReLU()) 
                                 for i in range(1, n_layers)])))
 
-    def _init_networks(self, shared_arch, actor_arch, critic_arch, n_actions, obs_space):
+    def _init_networks(self, shared_arch, actor_arch, critic_arch, n_actions, obs_space, n_envs):
         if len(obs_space) == 1:
             obs_space = obs_space[0]
+        action_shape = (n_envs, n_actions)
+        obs_shape = (n_envs, obs_space)
+
         if self._init_method == 'shared':
             shared = self._init_network([obs_space, *shared_arch], mark_last=False)
             self._actor = t.nn.Sequential(shared, nn.Linear(in_features=shared_arch[-1], out_features=n_actions))
@@ -56,24 +66,24 @@ class ActorCritic(nn.Module):
         else:
             raise ValueError(f'{self._init_method} is not a supported initalization method')
 
-        torchinfo.summary(self._actor, input_size=(obs_space,))
-        torchinfo.summary(self._critic, input_size=(obs_space,))
+        torchinfo.summary(self._actor, input_size=obs_shape)
+        torchinfo.summary(self._critic, input_size=obs_shape)
 
-    def get_action_and_value(self, observation):
+    def get_actions_and_values(self, observation):
         action_probs = self._get_action_probs(observation)
         action = action_probs.sample()
         action_prob = action_probs.log_prob(action)
         entropy = action_probs.entropy()
-        value = self.get_value(observation)
+        value = self.get_values(observation)
         return action, action_prob, entropy, value
 
-    def get_action(self, observation):  
+    def get_actions(self, observation):  
         return self._get_action_probs(observation).sample()
 
     def _get_action_probs(self, obs):
         return Categorical(logits=self._actor(obs))
 
-    def get_value(self, obs):
+    def get_values(self, obs):
         return t.squeeze(self._critic(obs), -1)
 
     def update(self, buffer):
@@ -87,9 +97,16 @@ class ActorCritic(nn.Module):
 
             if self._train_method == 'linear-sum':
                 loss = actor_loss + (self._critic_loss_weight * critic_loss) + (self._entropy_loss_weight * entropy_loss)
+                loss.backward()
             elif self._train_method == 'mdmm':
-                pass
-            loss.backward()
+                damp = self._mdmm_damping * (self._mdmm_epsilon - critic_loss).detach() # + (self._entropy_loss_weight * entropy_loss)
+                loss = actor_loss - ((self._mdmm_lambda - damp) * (self._mdmm_epsilon - critic_loss))
+                loss.backward()
+                
+                self._mdmm_lambda = t.tensor(self._mdmm_lambda + (1.0 * self._mdmm_lambda.grad), requires_grad=True) # TODO why is grad None after second call
+                self._mdmm_lambda = max(self._mdmm_lambda, t.tensor(0.0, requires_grad=True))
+
+            
             nn.utils.clip_grad_norm_(self.parameters(), self._max_grad_norm)
             self._optimizer.step()
 

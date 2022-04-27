@@ -1,10 +1,83 @@
-- mean vs sum on losses?
-- normalize returns vs advantages 
-- discounted returns computation
-- sub entropy
-- grad norm shared, before optimizing
+- why mountaincart and acrobot failing?
+- entropy?
+- epsilon & damping tuning
+- is mdmm loss equal to jax
+- show std on rolling avg
+    - have X samples at each timepoint 
+    - group samples at k-1 timepoints with points in k-th timepoint
+        - [0, 1, 2, 3, 4, 5], k=3
+        - [[0, 1, 2], [1, 2, 3], [2, 3, 4], [3, 4, 5]]
+- track lambda
+- gae lambda?
 
-- params for env
-    - mountaincart
-    - cartpole
-    - 
+- mountaincart
+    - details
+        - observation space
+            - cart velocity
+            - position on x axis
+        - action space
+            - accelerate to left
+            - don't accelerate
+            - accelerate to right
+        - rewards
+            - -1 for each timestep not at top of right hill
+        - success
+            - reach top of right hill
+    - params
+        - shared
+            - lr: ???
+        - separate
+            - actor lr: ???e
+            - critic lr: ???
+- cartpole
+    - details
+        - observation space
+            - cart position
+            - cart velocity
+            - pole angle
+            - pole angular velocity
+        - action space
+            - push to left
+            - push to right
+        - rewards
+            - +1 for each timestep the pole is upright
+        - termination
+            - pole Angle is greater than +/- 12 degrees 
+            - cart postition is greater than +/- 2.4
+            - >500 timesteps
+        - success
+            - reach top of right hill
+    - params
+        - shared:
+            - lr: .01
+        - separate
+            - actor lr: 
+
+- acrobot
+    - details
+        - observation space
+            - cosine of theta 1
+            - cart velocity
+            - pole angle
+            - pole angular velocity
+        - action space
+            - -1 torque to joint
+            - 0 torgue to joint
+            - 1 torque to joint
+        - rewards
+            - -1 for each timestep in which pole is not upright
+        - termination
+            - free end reaches target height (success)
+            - > 500 timesteps
+    - params
+        - shared:
+            - lr: .01
+        - separate
+            - actor lr:             
+    - acrobot
+        - shared:
+            - lr: ???
+        - separate
+            - network: 128
+            - actor lr: .001
+            - critic lr: .001 / .0001?

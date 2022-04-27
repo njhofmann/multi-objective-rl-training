@@ -1,22 +1,24 @@
 import gym
 
-def init_env(env, seed):
+def init_env(env, n_train_envs, seed):
+    assert n_train_envs > 0
+
     if env == 'cartpole':
-        train_env = gym.make('CartPole-v1')
-        eval_env = gym.make('CartPole-v1')
+        env = 'CartPole-v1'
     elif env == 'acrobot':
-        train_env = gym.make('Acrobot-v1')
-        eval_env = gym.make('Acrobot-v1')
+        env = 'Acrobot-v1'
     elif env == 'mountaincar':
-        train_env = gym.make('MountainCar-v0')
-        eval_env = gym.make('MountainCar-v0')
+        env = 'MountainCar-v0'
 
-    train_env.seed(seed)
-    train_env.action_space.seed(seed)
-    train_env.observation_space.seed(seed)
-    
-    eval_env.seed(seed)
-    eval_env.action_space.seed(seed)
-    eval_env.observation_space.seed(seed)
+    def make_env(env_name, env_seed):
+        def init():
+            temp = gym.make(env_name)
+            temp.seed(env_seed)
+            temp.action_space.seed(seed)
+            temp.observation_space.seed(seed)
+            return temp
+        return init
 
-    return train_env, eval_env
+    train_envs = gym.vector.SyncVectorEnv([make_env(env, seed + i) for i in range(n_train_envs)])
+    eval_env = make_env(env, seed + n_train_envs)()
+    return train_envs, eval_env
